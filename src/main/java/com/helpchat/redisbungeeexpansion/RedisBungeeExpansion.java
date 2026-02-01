@@ -1,9 +1,10 @@
 package com.helpchat.redisbungeeexpansion;
 
+import com.cjcrafter.foliascheduler.FoliaCompatibility;
+import com.cjcrafter.foliascheduler.ServerImplementation;
+import com.cjcrafter.foliascheduler.TaskImplementation;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
-import me.clip.placeholderapi.PlaceholderAPI;
-import me.clip.placeholderapi.PlaceholderAPIPlugin;
 import me.clip.placeholderapi.expansion.Cacheable;
 import me.clip.placeholderapi.expansion.Configurable;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
@@ -11,8 +12,6 @@ import me.clip.placeholderapi.expansion.Taskable;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -28,7 +27,9 @@ public final class RedisBungeeExpansion extends PlaceholderExpansion implements 
 
     private int total = 0;
 
-    private BukkitTask task;
+    private TaskImplementation<?> task;
+
+    private ServerImplementation scheduler;
 
     private final String CHANNEL = "legacy:redisbungee";
 
@@ -42,6 +43,8 @@ public final class RedisBungeeExpansion extends PlaceholderExpansion implements 
             Bukkit.getMessenger().registerIncomingPluginChannel(getPlaceholderAPI(), CHANNEL, this);
             registered = true;
         }
+        // Initialize FoliaScheduler
+        scheduler = new FoliaCompatibility(getPlaceholderAPI()).getServerImplementation();
     }
 
     @Override
@@ -133,25 +136,21 @@ public final class RedisBungeeExpansion extends PlaceholderExpansion implements 
     @Override
     public void start() {
 
-        task = new BukkitRunnable() {
+        task = scheduler.global().runAtFixedRate(() -> {
 
-            @Override
-            public void run() {
-
-                if (servers.isEmpty()) {
-
-                    getPlayers("ALL");
-
-                    return;
-                }
-
-                for (String server : servers.keySet()) {
-                    getPlayers(server);
-                }
+            if (servers.isEmpty()) {
 
                 getPlayers("ALL");
+
+                return;
             }
-        }.runTaskTimer(getPlaceholderAPI(), 100L, 20L * fetchInterval);
+
+            for (String server : servers.keySet()) {
+                getPlayers(server);
+            }
+
+            getPlayers("ALL");
+        }, 100L, 20L * fetchInterval);
     }
 
     @Override
